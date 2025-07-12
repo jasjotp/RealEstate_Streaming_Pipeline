@@ -3,6 +3,12 @@ import asyncio
 from playwright.async_api import async_playwright
 from bs4 import BeautifulSoup
 import os 
+from openai import OpenAI
+import json 
+
+# initialize our OpenAI client
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+client = OpenAI(api_key = OPENAI_API_KEY)
 
 # function to extract the bed, bath and sqft features from Zoopla if they exist, as they have the same class: _1wickv4
 def extract_bed_bath_sqft(div):
@@ -43,3 +49,49 @@ def extract_images_from_listing(content: str) -> list:
                         image_urls.append(urls[-1])
                         break # once we get one image for each picture tag, move on to the next picture, as we do not want duplicate images
     return image_urls
+
+# function to extract property details using OpenAI
+def extract_property_details(property_html: str, url: str = ''):
+    print('Extracting property details...')
+
+    # command to send to ChatGPT
+    command = f"""
+        You are an expert data extractor model and web scraper and you have been tasked with extracting information about the listing for me into JSON (if the detail exists, else put N/A).
+        Where is the div for the property details:
+        
+        {property_html}
+
+        This is the final json structure expected:
+        {{
+            "Address": "",
+            "Price": "",
+            "Description": "",
+            "Beds": "",
+            "Baths": "",
+            "Receptions": "",
+            "SqFt": "",
+            "EPC Rating": "",
+            "Tenure": "",
+            "Time Remaining on Lease": "",
+            "Service Charge": "",
+            "Council Tax Band": "",
+            "Ground Rent": ""    
+        }}
+    """
+
+    try:
+        response = client.chat.completions.create(
+            model = "chatgpt-4o-latest",
+            messages = [
+                {
+                    "role": "user",
+                    "content": command
+                }
+            ]
+        )
+        result = response.choices[0].message.content
+        json_data = json.loads(result)
+        return json_data
+    except Exception as e:
+        print(f"Error extracting property details: {e}")
+        return {}

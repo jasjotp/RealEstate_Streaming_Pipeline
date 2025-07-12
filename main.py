@@ -4,6 +4,7 @@ import os
 from dotenv import load_dotenv
 from bs4 import BeautifulSoup
 from helpers import extract_bed_bath_sqft, extract_images_from_listing
+from openai import OpenAI
 import json 
 
 load_dotenv()
@@ -13,6 +14,10 @@ SBR_WS_CDP = f'wss://{AUTH}@brd.superproxy.io:9222'
 # get the base URL to the REALTOR.ca site and the Location you want to scrape 
 BASE_URL = 'https://www.zoopla.co.uk/'
 LOCATION = 'London'
+
+# initialize our OpenAI client
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+client = OpenAI(api_key = OPENAI_API_KEY)
 
 async def run(pw):
     print('Connecting to Browser API...')
@@ -88,10 +93,6 @@ async def run(pw):
                 detail_page = await browser.new_page()
                 await detail_page.goto(data['Link'], timeout = 30000)
                 await detail_page.wait_for_load_state('load')
-
-                # extract the main listing content
-                listing_content = await detail_page.inner_html('div[aria-label="Listing details"]')
-                soup_listing = BeautifulSoup(listing_content, 'html.parser')
             
                 # from the listing page, extract the images first
                 await detail_page.wait_for_selector('div._15j4h5e0', timeout = 30000) 
@@ -99,6 +100,11 @@ async def run(pw):
 
                 listing_images = extract_images_from_listing(image_content)
                 data['Pictures'] = listing_images
+
+                # extract the main listing content
+                listing_content = await detail_page.inner_html('div[aria-label="Listing details"]')
+                soup_listing = BeautifulSoup(listing_content, 'html.parser')
+
             except Exception as e:
                 print(f'Error scraping detail page at {link}: {e}')
                 data['Pictures'] = listing_images
@@ -110,7 +116,7 @@ async def run(pw):
             await asyncio.sleep(1)
         
             print(f'Scraped listing {idx+1}: {address}')
-            
+
         except Exception as e:
             print(f'Fatal scraping error: {e}')
         finally:
