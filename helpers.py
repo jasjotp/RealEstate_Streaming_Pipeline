@@ -19,5 +19,27 @@ def extract_bed_bath_sqft(div):
             baths = text 
         elif 'sq. ft' in text or 'sq ft' in text:
             sqft = text 
-            
+
     return beds, baths, sqft
+
+# function to extract image URLs for listing 
+def extract_images_from_listing(content: str) -> list:
+    soup = BeautifulSoup(content, 'html.parser')
+    image_urls = []
+
+    # loop through each list item that contains picture tags with sources
+    for li in soup.find_all('li'): 
+        # find the picture tag inside the list tag 
+        picture = li.find('picture')
+        if picture:
+            # prioritize grabbing the highest resolution jpg fallback
+            source_tags = picture.find_all('source')
+
+            for source in reversed(source_tags): # reversed, as typically, the last image is jpg format and typically highest resolution 
+                if source.has_attr('srcset'):
+                    srcset = source['srcset']
+                    urls = [s.strip().split()[0] for s in srcset.split(',')]
+                    if urls:
+                        image_urls.append(urls[-1])
+                        break # once we get one image for each picture tag, move on to the next picture, as we do not want duplicate images
+    return image_urls
