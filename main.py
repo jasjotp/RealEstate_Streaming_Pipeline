@@ -89,49 +89,49 @@ async def run(pw):
                 # navigate to the listings page 
                 print(f'Navigating to the listing page at {link} in {address}')
             
-            try:
-                detail_page = await browser.new_page()
-                await detail_page.goto(data['Link'], timeout = 30000)
-                await detail_page.wait_for_load_state('load')
-            
-                # from the listing page, extract the images first
-                await detail_page.wait_for_selector('div._15j4h5e0', timeout = 30000) 
-                image_content = await detail_page.inner_html('div._15j4h5e0') 
-
-                listing_images = extract_images_from_listing(image_content)
-                data['Pictures'] = listing_images
-
-                # extract the main listing content using the OpenAI helper function from helpers.py
-                listing_content = await detail_page.inner_html('div[aria-label="Listing details"]')
-                property_details = extract_property_details(listing_content)
-
-                # extract floor plan by clicking floor plan tab (button that opens the floor plan image)
-                await page.click("button:has-text('Floor plan')")
-
-                # wait for the floor plan viewer content to appear 
-                await page.wait_for_selector('div[aria-labelledby="radix-vr12e-trigger-floor_plans"]')
-
-                # grab the MTML for just the floor plan section 
-                floor_plan_html = await page.inner_html('div[aria-labelledby="radix-vr12e-trigger-floor_plans"]')
-
-                # extract floor plan image URL 
-                floor_plan_url = extract_floor_plan(floor_plan_html)
-
-                # add floor plan and property details to the JSON structure for each listing 
-                data.update(floor_plan_html)
-                data.update(property_details)
+                try:
+                    detail_page = await browser.new_page()
+                    await detail_page.goto(data['Link'], timeout = 30000)
+                    await detail_page.wait_for_load_state('load')
                 
-            except Exception as e:
-                print(f'Error scraping detail page at {link}: {e}')
-                data['Pictures'] = listing_images
-            finally:
-                await detail_page.close()
+                    # from the listing page, extract the images first
+                    await detail_page.wait_for_selector('div._15j4h5e0', timeout = 30000) 
+                    image_content = await detail_page.inner_html('div._15j4h5e0') 
 
-            # append each listing to our result set 
-            all_listings.append(data)
-            await asyncio.sleep(1)
-        
-            print(f'Scraped listing {idx+1}: {address}')
+                    listing_images = extract_images_from_listing(image_content)
+                    data['Pictures'] = listing_images
+
+                    # extract the main listing content using the OpenAI helper function from helpers.py
+                    listing_content = await detail_page.inner_html('div[aria-label="Listing details"]')
+                    property_details = extract_property_details(listing_content)
+
+                    # extract floor plan by clicking floor plan tab (button that opens the floor plan image)
+                    await detail_page.click("button:has-text('Floor plan')")
+
+                    # wait for the floor plan viewer content to appear 
+                    await detail_page.wait_for_selector('div[aria-labelledby="radix-vr12e-trigger-floor_plans"]')
+
+                    # grab the MTML for just the floor plan section 
+                    floor_plan_html = await detail_page.inner_html('div[aria-labelledby="radix-vr12e-trigger-floor_plans"]')
+
+                    # extract floor plan image URL 
+                    floor_plan_url = extract_floor_plan(floor_plan_html)
+
+                    # add floor plan and property details to the JSON structure for each listing 
+                    data['FloorPlanImage'] = floor_plan_url
+                    data.update(property_details)
+
+                except Exception as e:
+                    print(f'Error scraping detail page at {link}: {e}')
+                    data['Pictures'] = listing_images
+                finally:
+                    await detail_page.close()
+
+                # append each listing to our result set 
+                all_listings.append(data)
+                await asyncio.sleep(1)
+            
+                print(f'Scraped listing {idx+1}: {address}')
 
         except Exception as e:
             print(f'Fatal scraping error: {e}')
