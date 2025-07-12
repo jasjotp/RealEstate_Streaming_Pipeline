@@ -51,7 +51,7 @@ def extract_images_from_listing(content: str) -> list:
     return image_urls
 
 # function to extract property details using OpenAI
-def extract_property_details(property_html: str, url: str = ''):
+def extract_property_details(property_html: str):
     print('Extracting property details...')
 
     # command to send to ChatGPT
