@@ -3,7 +3,7 @@ from playwright.async_api import async_playwright
 import os 
 from dotenv import load_dotenv
 from bs4 import BeautifulSoup
-from helpers import extract_bed_bath_sqft, extract_images_from_listing
+from helpers import extract_bed_bath_sqft, extract_images_from_listing, extract_property_details, extract_floor_plan
 from openai import OpenAI
 import json 
 
@@ -101,10 +101,26 @@ async def run(pw):
                 listing_images = extract_images_from_listing(image_content)
                 data['Pictures'] = listing_images
 
-                # extract the main listing content
+                # extract the main listing content using the OpenAI helper function from helpers.py
                 listing_content = await detail_page.inner_html('div[aria-label="Listing details"]')
-                soup_listing = BeautifulSoup(listing_content, 'html.parser')
+                property_details = extract_property_details(listing_content)
 
+                # extract floor plan by clicking floor plan tab (button that opens the floor plan image)
+                await page.click("button:has-text('Floor plan')")
+
+                # wait for the floor plan viewer content to appear 
+                await page.wait_for_selector('div[aria-labelledby="radix-vr12e-trigger-floor_plans"]')
+
+                # grab the MTML for just the floor plan section 
+                floor_plan_html = await page.inner_html('div[aria-labelledby="radix-vr12e-trigger-floor_plans"]')
+
+                # extract floor plan image URL 
+                floor_plan_url = extract_floor_plan(floor_plan_html)
+
+                # add floor plan and property details to the JSON structure for each listing 
+                data.update(floor_plan_html)
+                data.update(property_details)
+                
             except Exception as e:
                 print(f'Error scraping detail page at {link}: {e}')
                 data['Pictures'] = listing_images

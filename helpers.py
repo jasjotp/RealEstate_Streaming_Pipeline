@@ -95,3 +95,27 @@ def extract_property_details(property_html: str):
     except Exception as e:
         print(f"Error extracting property details: {e}")
         return {}
+
+# function to extract floor plan image 
+def extract_floor_plan(html: str) -> str:
+    print('Extracting floor plan...')
+    soup = BeautifulSoup(html, 'html.parser')
+    picture_tags = soup.find_all('picture')
+
+    for picture in picture_tags:
+        # look inside <img> for a floor plan keyword 
+        img = picture.find('img')
+        if img and img.has_attr('alt') and 'floor plan' in img['alt'].lower():
+            # prefer source if available 
+            source = picture.find('source')
+            if source and source.has_attr('srcset'):
+                srcset = source['srcset']
+                urls = [s.strip().split()[0] for s in srcset.split(',')]
+                if urls:
+                    return urls[-1] # return last image (typically highest resolution)
+            elif img.has_attr('src'):
+                return img['src'] # fallback to <img src>
+    return 'N/A'
+                
+
+
