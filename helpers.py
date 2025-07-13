@@ -4,7 +4,10 @@ from playwright.async_api import async_playwright
 from bs4 import BeautifulSoup
 import os 
 from openai import OpenAI
+from dotenv import load_dotenv
 import json 
+
+load_dotenv()
 
 # initialize our OpenAI client
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
@@ -51,13 +54,13 @@ def extract_images_from_listing(content: str) -> list:
     return image_urls
 
 # function to extract property details using OpenAI
-def extract_property_details(property_html: str):
+def extract_property_details(property_html: str) -> dict:
     print('Extracting property details...')
 
     # command to send to ChatGPT
     command = f"""
         You are an expert data extractor model and web scraper and you have been tasked with extracting information about the listing for me into JSON (if the detail exists, else put N/A).
-        Where is the div for the property details:
+        Return ONLY a JSON object with no explanation. Do not add markdown formatting or any text before/after.
         
         {property_html}
 
@@ -89,9 +92,12 @@ def extract_property_details(property_html: str):
                 }
             ]
         )
-        result = response.choices[0].message.content
-        json_data = json.loads(result)
-        return json_data
+        output = response.choices[0].message.content.strip()
+
+        json_data = json.loads(output)
+        print(f'JSON OpenAI Output: {json_data}')
+        return json_data 
+    
     except Exception as e:
         print(f"Error extracting property details: {e}")
         return {}
@@ -99,23 +105,21 @@ def extract_property_details(property_html: str):
 # function to extract floor plan image 
 def extract_floor_plan(html: str) -> str:
     print('Extracting floor plan...')
-    soup = BeautifulSoup(html, 'html.parser')
-    picture_tags = soup.find_all('picture')
 
-    for picture in picture_tags:
-        # look inside <img> for a floor plan keyword 
-        img = picture.find('img')
-        if img and img.has_attr('alt') and 'floor plan' in img['alt'].lower():
-            # prefer source if available 
-            source = picture.find('source')
-            if source and source.has_attr('srcset'):
-                srcset = source['srcset']
-                urls = [s.strip().split()[0] for s in srcset.split(',')]
-                if urls:
-                    return urls[-1] # return last image (typically highest resolution)
-            elif img.has_attr('src'):
-                return img['src'] # fallback to <img src>
+    soup = BeautifulSoup(html, 'html.parser')
+    picture_tag = soup.find('picture')
+
+    if picture_tag:
+        source_tag = picture_tag.find('source')
+        if source_tag and source_tag.has_attr('srcset'):
+            srcset = source_tag['srcset']
+            urls = [s.strip().split()[0] for s in srcset.split(',')]
+
+            if urls:
+                return urls[0] # grab first URL in srcset 
+    
+    # if there is no picture tag for the floor plan, return 'N/A'
     return 'N/A'
-                
+
 
 

@@ -15,10 +15,6 @@ SBR_WS_CDP = f'wss://{AUTH}@brd.superproxy.io:9222'
 BASE_URL = 'https://www.zoopla.co.uk/'
 LOCATION = 'London'
 
-# initialize our OpenAI client
-OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
-client = OpenAI(api_key = OPENAI_API_KEY)
-
 async def run(pw):
     print('Connecting to Browser API...')
     browser = await pw.chromium.connect_over_cdp(SBR_WS_CDP)
@@ -35,13 +31,15 @@ async def run(pw):
             print("Accept all button not found or already dismissed")
 
         # fill in the location into the search bar and press enter 
+        await page.wait_for_selector('input[name="autosuggest-input"]', timeout = 30000)
+
         await page.fill('input[name="autosuggest-input"]', LOCATION)
         await page.wait_for_timeout(1000)  # wait for suggestions to show
         await page.keyboard.press("Enter")
         print("Waiting for search results...")
         
         # wait for the page to load after you search the location 
-        await page.wait_for_selector('[data-testid="search-results-header-control"]', timeout = 10000)
+        await page.wait_for_load_state('load')
 
         # pull the div that contains the regular listings for the page
         content = await page.inner_html('div[data-testid="regular-listings"]')
@@ -51,9 +49,11 @@ async def run(pw):
 
         all_listings = []
 
+        context = await browser.new_context()
         try:
             # each listing is in the 'dkr2t86' div class, so look through all the div classes that contain that div class
             for idx, div in enumerate(soup.find_all("div", class_ = "dkr2t86")): # gives us access to the index and value of all the divs containing each listing
+                
                 data = {}
 
                 # extract address from address tag
@@ -88,9 +88,13 @@ async def run(pw):
 
                 # navigate to the listings page 
                 print(f'Navigating to the listing page at {link} in {address}')
-            
+
+                detail_page = None
+
                 try:
-                    detail_page = await browser.new_page()
+                    # initialize detail page 
+                    detail_page = await context.new_page()
+                
                     await detail_page.goto(data['Link'], timeout = 30000)
                     await detail_page.wait_for_load_state('load')
                 
@@ -104,28 +108,80 @@ async def run(pw):
                     # extract the main listing content using the OpenAI helper function from helpers.py
                     listing_content = await detail_page.inner_html('div[aria-label="Listing details"]')
                     property_details = extract_property_details(listing_content)
+                    print(f'Property Details: {property_details}')
+                    data.update(property_details)
 
                     # extract floor plan by clicking floor plan tab (button that opens the floor plan image)
-                    await detail_page.click("button:has-text('Floor plan')")
 
-                    # wait for the floor plan viewer content to appear 
-                    await detail_page.wait_for_selector('div[aria-labelledby="radix-vr12e-trigger-floor_plans"]')
+                    # try to close any usercentrics banner  
+                    try:
+                        await detail_page.locator("aside#usercentrics-cmp-ui").evaluate("node => node.remove()")
+                        print('Removed blocking overlay (usercentrics)...')
+                    except:
+                        pass 
+
+                    # try to click floor plan button
+                    try:
+                        # Strategy 1 - Visible button text match
+                        await detail_page.click("xpath=//*[contains(text(), 'Floor plan')]", timeout = 30000)
+                        print("Clicked Floor Plan using XPath text match")
+                    except:
+                            try:
+                                # Strategy 2 - Button class match
+                                await detail_page.click("button._194zgEt9._1831lcw3", timeout = 30000)
+                                print("Clicked Floor Plan using button class")
+                            except:
+                                try:
+                                    # Strategy 3 - SVG icon inside the button (if visible)
+                                    await detail_page.click("svg.k6cr000.k6cr002.k6cr005", timeout = 30000)
+                                    print("Clicked Floor Plan using SVG icon")
+                                except:
+                                    try: 
+                                        # Strategy 4 - Use the href anchor value from <use>
+                                        await detail_page.click("use[href='#floorplan-medium']", timeout = 30000)
+                                        print("Clicked Floor Plan using SVG href anchor")
+                                    except Exception as e:
+                                        print(f'All attempts failed to click Floor Plan: {e}')
+
+                    # after clicking the floor plan button, wait for the floor plan viewer content to appear 
+                    await detail_page.wait_for_selector('ol[aria-label*="Floor plan"]', timeout = 30000)
 
                     # grab the MTML for just the floor plan section 
-                    floor_plan_html = await detail_page.inner_html('div[aria-labelledby="radix-vr12e-trigger-floor_plans"]')
+                    floor_plan_html = await detail_page.inner_html('ol[aria-label*="Floor plan"]')
 
                     # extract floor plan image URL 
                     floor_plan_url = extract_floor_plan(floor_plan_html)
+                    print(f'Floor Plan URL: {floor_plan_url}')
 
                     # add floor plan and property details to the JSON structure for each listing 
                     data['FloorPlanImage'] = floor_plan_url
-                    data.update(property_details)
-
+                    
                 except Exception as e:
-                    print(f'Error scraping detail page at {link}: {e}')
-                    data['Pictures'] = listing_images
+                    if "Page.navigate limit reached" not in str(e):
+                        print(f'Error scraping detail page at {link}: {e}')
+                    
+                    if detail_page:
+                    # if we reach the limit error, extract whatever we can
+                        try: 
+                            data['Pictures'] = listing_images
+                        except:
+                            data['Pictures'] = []
+                        
+                        try:
+                            data.update(property_details)
+                        except: 
+                            pass
+
+                        try:
+                            floor_plan_html = await detail_page.inner_html('ol[aria-label*="Floor plan"]')
+                            floor_plan_url = extract_floor_plan(floor_plan_html)
+                            data['FloorPlanImage'] = floor_plan_url
+                        except: 
+                            data['FloorPlanImage'] = 'N/A'
+
                 finally:
-                    await detail_page.close()
+                    if detail_page:
+                        await detail_page.close()
 
                 # append each listing to our result set 
                 all_listings.append(data)
@@ -140,10 +196,6 @@ async def run(pw):
             with open('listings.json', 'w', encoding = 'utf-8') as f:
                 json.dump(all_listings, f, ensure_ascii = False, indent = False)
             print(f'Saved {len(all_listings)} listings to listings.json')
-
-        # test to verify connection
-        await page.screenshot(path = "page.png", full_page = True)
-        print("Screenshot saved as 'page.png'")
 
     finally:
         await browser.close()
