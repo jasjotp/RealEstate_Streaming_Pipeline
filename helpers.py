@@ -51,6 +51,8 @@ def extract_images_from_listing(content: str) -> list:
                     if urls:
                         image_urls.append(urls[-1])
                         break # once we get one image for each picture tag, move on to the next picture, as we do not want duplicate images
+    if not image_urls:
+        print("No images found in listing HTML content")
     return image_urls
 
 # function to extract property details using OpenAI
@@ -120,6 +122,3 @@ def extract_floor_plan(html: str) -> str:
     
     # if there is no picture tag for the floor plan, return 'N/A'
     return 'N/A'
-
-
-

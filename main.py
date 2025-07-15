@@ -19,7 +19,9 @@ async def run(pw):
     print('Connecting to Browser API...')
     browser = await pw.chromium.connect_over_cdp(SBR_WS_CDP)
     try:
-        page = await browser.new_page()
+        context = await browser.new_context()
+        page = await context.new_page()
+
         print(f'Connected! Navigating to webpage: {BASE_URL}')
         await page.goto(BASE_URL, wait_until = 'load')
 
@@ -49,7 +51,6 @@ async def run(pw):
 
         all_listings = []
 
-        context = await browser.new_context()
         try:
             # each listing is in the 'dkr2t86' div class, so look through all the div classes that contain that div class
             for idx, div in enumerate(soup.find_all("div", class_ = "dkr2t86")): # gives us access to the index and value of all the divs containing each listing
@@ -89,21 +90,23 @@ async def run(pw):
                 # navigate to the listings page 
                 print(f'Navigating to the listing page at {link} in {address}')
 
-                detail_page = None
-
                 try:
-                    # initialize detail page 
+                    # reconnect the browser 
+                    await browser.close()
+                    browser = await pw.chromium.connect_over_cdp(SBR_WS_CDP)
+                    context = await browser.new_context()
                     detail_page = await context.new_page()
                 
-                    await detail_page.goto(data['Link'], timeout = 30000)
-                    await detail_page.wait_for_load_state('load')
+                    await detail_page.goto(data['Link'], wait_until = 'domcontentloaded', timeout = 30000)
                 
                     # from the listing page, extract the images first
-                    await detail_page.wait_for_selector('div._15j4h5e0', timeout = 30000) 
                     image_content = await detail_page.inner_html('div._15j4h5e0') 
 
                     listing_images = extract_images_from_listing(image_content)
-                    data['Pictures'] = listing_images
+                    if listing_images: 
+                        data['Pictures'] = listing_images
+                    else:
+                        data['Pictures'] = []
 
                     # extract the main listing content using the OpenAI helper function from helpers.py
                     listing_content = await detail_page.inner_html('div[aria-label="Listing details"]')
@@ -155,33 +158,41 @@ async def run(pw):
 
                     # add floor plan and property details to the JSON structure for each listing 
                     data['FloorPlanImage'] = floor_plan_url
+
+                    await detail_page.close()
+                    await context.close()
                     
                 except Exception as e:
                     if "Page.navigate limit reached" not in str(e):
                         print(f'Error scraping detail page at {link}: {e}')
                     
-                    if detail_page:
-                    # if we reach the limit error, extract whatever we can
-                        try: 
-                            data['Pictures'] = listing_images
-                        except:
-                            data['Pictures'] = []
-                        
-                        try:
-                            data.update(property_details)
-                        except: 
-                            pass
+                    # if we reach the limit error, extract whatever we can so we don't lose partial data
+                    try:  # try to extract whatever images we can 
+                        listing_images = extract_images_from_listing(image_content)
+                        data['Pictures'] = listing_images
+                    except:
+                        data['Pictures'] = 'N/A'
+                    
+                    try: # try to extract whatever listing info from OpenAI that we can
+                        listing_content = await detail_page.inner_html('div[aria-label="Listing details"]')
+                        property_details = extract_property_details(listing_content)
+                        data.update(property_details)
+                    except: 
+                        pass
 
-                        try:
-                            floor_plan_html = await detail_page.inner_html('ol[aria-label*="Floor plan"]')
-                            floor_plan_url = extract_floor_plan(floor_plan_html)
-                            data['FloorPlanImage'] = floor_plan_url
-                        except: 
-                            data['FloorPlanImage'] = 'N/A'
+                    try: # try to extract the floor plan contnet if anything else fails
+                        await detail_page.click("xpath=//*[contains(text(), 'Floor plan')]", timeout = 30000)
+                        print("Clicked Floor Plan in except block using XPath")
 
-                finally:
-                    if detail_page:
-                        await detail_page.close()
+                        # wait for the floor plan section to eppear 
+                        await detail_page.wait_for_selector('ol[aria-label*="Floor plan"]', timeout = 30000)
+
+                        # extract the floor plan image 
+                        floor_plan_html = await detail_page.inner_html('ol[aria-label*="Floor plan"]')
+                        floor_plan_url = extract_floor_plan(floor_plan_html)
+                        data['FloorPlanImage'] = floor_plan_url
+                    except:
+                        data['FloorPlanImage'] = 'N/A'
 
                 # append each listing to our result set 
                 all_listings.append(data)
@@ -194,11 +205,19 @@ async def run(pw):
         finally:
             # save all listings so far to a JSON file 
             with open('listings.json', 'w', encoding = 'utf-8') as f:
-                json.dump(all_listings, f, ensure_ascii = False, indent = False)
+                json.dump(all_listings, f, ensure_ascii = False, indent = 2)
             print(f'Saved {len(all_listings)} listings to listings.json')
 
     finally:
-        await browser.close()
+        # only close the initial context/page if still open
+        try:
+            await context.close()
+        except:
+            pass
+        try:
+            await browser.close()
+        except:
+            pass
 
 async def main():
     async with async_playwright() as playwright:
