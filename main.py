@@ -146,18 +146,29 @@ async def run(pw):
                                     except Exception as e:
                                         print(f'All attempts failed to click Floor Plan: {e}')
 
-                    # after clicking the floor plan button, wait for the floor plan viewer content to appear 
-                    await detail_page.wait_for_selector('ol[aria-label*="Floor plan"]', timeout = 30000)
+                    # the floor plan is typically either an image viewer or a direct PDF link
+                    try:
+                        # after clicking the floor plan button, wait for the floor plan viewer content to appear 
+                        await detail_page.wait_for_selector('ol[aria-label*="Floor plan"]', timeout = 30000)
 
-                    # grab the MTML for just the floor plan section 
-                    floor_plan_html = await detail_page.inner_html('ol[aria-label*="Floor plan"]')
+                        # grab the MTML for just the floor plan section 
+                        floor_plan_html = await detail_page.inner_html('ol[aria-label*="Floor plan"]')
 
-                    # extract floor plan image URL 
-                    floor_plan_url = extract_floor_plan(floor_plan_html)
-                    print(f'Floor Plan URL: {floor_plan_url}')
+                        # extract floor plan image URL 
+                        floor_plan_url = extract_floor_plan(floor_plan_html)
+                        print(f'Floor Plan URL (image viewer): {floor_plan_url}')
 
-                    # add floor plan and property details to the JSON structure for each listing 
-                    data['FloorPlanImage'] = floor_plan_url
+                        # add floor plan and property details to the JSON structure for each listing 
+                        data['FloorPlanImage'] = floor_plan_url if floor_plan_url else 'N/A'
+                    except:
+                        try: # if the Floor plan label does not exist, the floor plan should be in a pdf
+                            pdf_element = await detail_page.query_selector("a[href$='.pdf']")
+                            pdf_url = await pdf_element.get_attribute('href') if pdf_element else None
+                            print(f'Floor Plan URL (PDF): {pdf_url}')
+                            data['FloorPlanImage'] = pdf_url if pdf_url else 'N/A'
+                        except Exception as e:
+                            print(f'Could not extract PDF Floor Plan: {e}')
+                            data['FloorPlanImage'] = 'N/A'
 
                     await detail_page.close()
                     await context.close()
@@ -181,19 +192,33 @@ async def run(pw):
                         pass
 
                     try: # try to extract the floor plan contnet if anything else fails
+                        # try clicking floor plan tab
                         await detail_page.click("xpath=//*[contains(text(), 'Floor plan')]", timeout = 30000)
                         print("Clicked Floor Plan in except block using XPath")
 
-                        # wait for the floor plan section to eppear 
-                        await detail_page.wait_for_selector('ol[aria-label*="Floor plan"]', timeout = 30000)
+                        try: 
+                            # try to extract floor plan from image viewer
+                            # wait for the floor plan section to eppear 
+                            await detail_page.wait_for_selector('ol[aria-label*="Floor plan"]', timeout = 30000)
 
-                        # extract the floor plan image 
-                        floor_plan_html = await detail_page.inner_html('ol[aria-label*="Floor plan"]')
-                        floor_plan_url = extract_floor_plan(floor_plan_html)
-                        data['FloorPlanImage'] = floor_plan_url
-                    except:
+                            # extract the floor plan image 
+                            floor_plan_html = await detail_page.inner_html('ol[aria-label*="Floor plan"]', timeout = 30000)
+                            floor_plan_url = extract_floor_plan(floor_plan_html)
+                            print(f'Floor Plan URL (image viewer): {floor_plan_url}')
+                            data['FloorPlanImage'] = floor_plan_url if floor_plan_url else 'N/A'
+                        except: 
+                            # if the image viewer fails, try to grab the PDF link 
+                            try: 
+                                pdf_element = await detail_page.query_selector("a[href$='.pdf']")
+                                pdf_url = await pdf_element.get_attribute('href') if pdf_element else None 
+                                print(f'Floor Plan URL (PDF): {pdf_url}')
+                                data['FloorPlanImage'] = pdf_url if pdf_url else 'N/A'
+                            except Exception as e:
+                                print(f'Could not extract PDF Floor Plan: {e}')
+                                data['FloorPlanImage'] = 'N/A'
+                    except: 
                         data['FloorPlanImage'] = 'N/A'
-
+                        
                 # append each listing to our result set 
                 all_listings.append(data)
                 await asyncio.sleep(1)
