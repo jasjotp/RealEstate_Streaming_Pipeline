@@ -1,0 +1,7 @@
+pyspark==3.5.0
+kafka-python==2.0.2
+cassandra-driver==3.29.1
+playwright==1.44.0
+python-dotenv
+beautifulsoup4
+openai

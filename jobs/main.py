@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from bs4 import BeautifulSoup
 from helpers import extract_bed_bath_sqft, extract_images_from_listing, extract_property_details, extract_floor_plan
 from openai import OpenAI
+from kafka import KafkaProducer 
 import json 
 
 load_dotenv()
@@ -15,7 +16,7 @@ SBR_WS_CDP = f'wss://{AUTH}@brd.superproxy.io:9222'
 BASE_URL = 'https://www.zoopla.co.uk/'
 LOCATION = 'London'
 
-async def run(pw):
+async def run(pw, producer):
     print('Connecting to Browser API...')
     browser = await pw.chromium.connect_over_cdp(SBR_WS_CDP)
     try:
@@ -160,6 +161,12 @@ async def run(pw):
 
                         # add floor plan and property details to the JSON structure for each listing 
                         data['FloorPlanImage'] = floor_plan_url if floor_plan_url else 'N/A'
+
+                        # send data to Kafka 
+                        print('Sending data to Kafka')
+                        producer.send('properties', value = json.dumps(data).encode('utf-8'))
+                        print('Data sent to Kafka')
+
                     except:
                         try: # if the Floor plan label does not exist, the floor plan should be in a pdf
                             pdf_element = await detail_page.query_selector("a[href$='.pdf']")
@@ -218,7 +225,7 @@ async def run(pw):
                                 data['FloorPlanImage'] = 'N/A'
                     except: 
                         data['FloorPlanImage'] = 'N/A'
-                        
+
                 # append each listing to our result set 
                 all_listings.append(data)
                 await asyncio.sleep(1)
@@ -245,8 +252,13 @@ async def run(pw):
             pass
 
 async def main():
+    producer = KafkaProducer(
+        bootstrap_servers = ['localhost:9092'], 
+        max_block_ms = 5000
+    )
+
     async with async_playwright() as playwright:
-        await run(playwright)
+        await run(playwright, producer)
 
 if __name__ == '__main__':
     asyncio.run(main())
