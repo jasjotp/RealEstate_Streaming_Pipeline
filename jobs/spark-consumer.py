@@ -100,10 +100,7 @@ def main():
     spark = (SparkSession.builder.appName('RealEstateSparkConsumer')
             .config('spark.cassandra.connection.host', 'localhost')
             .config('spark.jars.packages', 'com.datastax.spark:spark-cassandra-connector_2.12:3.4.1,org.apache.spark:spark-sql-kafka-0-10_2.12:3.4.1')
-            .config("spark.hadoop.io.native.lib.available", "false")
-            .config("spark.hadoop.use.native.io", "false")
-            .config("spark.sql.streaming.checkpointLocation", "file:///C:/tmp/spark-checkpoints")
-            .config("spark.hadoop.fs.file.impl.disable.cache", "true")
+            .config("spark.sql.streaming.checkpointLocation", "file:///home/jasjotparmar/spark-checkpoints")
             .getOrCreate()
             )
     
@@ -159,6 +156,7 @@ def main():
 
     # write the data to Cassandra  
     cassandra_query = (kafka_df.writeStream
+                       .option("checkpointLocation", "/home/jasjotparmar/spark-checkpoints") \
                        .foreachBatch(lambda batch_df, batch_id: batch_df.foreach(
                            lambda row: insert_data(create_cassandra_session(), **row.asDict()))) # write each batch to Cassandra
                         .start()
