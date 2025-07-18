@@ -1,6 +1,6 @@
 # Real Estate Streaming Pipeline
 
-This project is a complete real-time data streaming pipeline that scrapes UK property listings, processes them using Kafka and Spark, and stores them in Cassandra for downstream analytics. I built this to practice working with a modern data stack and simulate what real-time pipelines look like in production.
+This project is a complete real-time data streaming pipeline that scrapes property listings, processes them using Kafka and Spark, and stores them in Cassandra for downstream analytics. I built this to practice working with a modern data stack and simulate what real-time pipelines look like in production.
 
 ---
 
