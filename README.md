@@ -2,7 +2,7 @@
 
 This project is a complete real-time data streaming pipeline that scrapes UK property listings, processes them using Kafka and Spark, and stores them in Cassandra for downstream analytics. I built this to practice working with a modern data stack and simulate what real-time pipelines look like in production.
 
-<br>
+---
 
 ## Technologies Used
 
@@ -16,7 +16,7 @@ This project is a complete real-time data streaming pipeline that scrapes UK pro
 - **Spark Cassandra Connector** – to connect Spark with Cassandra  
 - **Kafka Control Center** – for visualizing the topic stream  
 
-<br>
+---
 
 ## Project Architecture
 
@@ -24,7 +24,7 @@ Here's a visual of the pipeline and system architecture:
 
 ![System Architecture](system_architecture.png)
 
-<br>
+---
 
 ### Breakdown
 
@@ -53,7 +53,7 @@ RealEstate_Streaming_Pipeline/
 ├── README.md                      # This file
 ```
 
-<br>
+---
 
 ## How the Pipeline Works
 
@@ -95,8 +95,9 @@ Then run:
 ```sql
 USE property_streams;
 SELECT * FROM properties LIMIT 3;
+```
 
-<br>
+---
 
 ## **Key Features**
 
@@ -107,7 +108,7 @@ SELECT * FROM properties LIMIT 3;
 - Writes directly to Cassandra for scalable storage  
 - Includes visual validation via Kafka Control Center and screenshots  
 
-<br>
+---
 
 ## **Why I Built This**
 
@@ -115,13 +116,15 @@ I wanted to get hands-on experience building a production-like streaming system 
 
 This was also a good way to improve my comfort with Kafka, Spark streaming, Docker networking, and writing clean, modular Python code.
 
-<br>
+---
 
 ## **Future Improvements**
 
 - Build a real-time dashboard in Streamlit or Grafana to show incoming listings  
 - Include unit and integration tests  
-- Deploy to the cloud using AWS MSK and EC2
+- Deploy to the cloud using AWS MSK and EC2  
+
+---
 
 ## Author
 
@@ -129,3 +132,4 @@ This was also a good way to improve my comfort with Kafka, Spark streaming, Dock
 Aspiring Data Engineer | Python & SQL Enthusiast | Curious Storyteller  
 
 🔗 [GitHub](https://github.com/jasjotp) • [LinkedIn](https://www.linkedin.com/in/jasjotparmar)
+
