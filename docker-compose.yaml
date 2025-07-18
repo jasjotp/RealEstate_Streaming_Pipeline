@@ -1,7 +1,9 @@
 version: '3'
 
 x-spark-common: &spark-common
-  image: bitnami/spark:latest
+  build:
+    context: .
+    dockerfile: Dockerfile
   volumes:
     - ./jobs:/opt/bitnami/spark/jobs
   networks:
@@ -89,6 +91,9 @@ services:
     ports:
       - "9090:8080"
       - "7077:7077"
+    volumes:
+      - ./jobs:/opt/bitnami/spark/jobs
+      - ./ivy-cache:/tmp/ivy-cache
   spark-worker: &spark-worker-image
     <<: *spark-common
     command: bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077

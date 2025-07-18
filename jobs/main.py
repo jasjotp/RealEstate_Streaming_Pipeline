@@ -14,7 +14,7 @@ SBR_WS_CDP = f'wss://{AUTH}@brd.superproxy.io:9222'
 
 # get the base URL to the REALTOR.ca site and the Location you want to scrape 
 BASE_URL = 'https://www.zoopla.co.uk/'
-LOCATION = 'London'
+LOCATION = 'Birmingham'
 
 async def run(pw, producer):
     print('Connecting to Browser API...')
