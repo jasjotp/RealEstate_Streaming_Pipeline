@@ -11,8 +11,8 @@ This project is a complete real-time data streaming pipeline that scrapes proper
 - **Apache Spark (Structured Streaming)** – for real-time processing  
 - **Apache Cassandra** – as the final data sink  
 - **Docker Compose** – to manage multi-container setup  
-- **Playwright** – for web scraping  
-- **Pandas** – for parsing and formatting JSON  
+- **Playwright** – for web scraping
+- **OpenAI (GPT-4o)** – to extract property details from HTML using LLMs
 - **Spark Cassandra Connector** – to connect Spark with Cassandra  
 - **Kafka Control Center** – for visualizing the topic stream  
 
@@ -28,7 +28,8 @@ Here's a visual of the pipeline and system architecture:
 
 ### Breakdown
 
-- **Scraping**: Playwright fetches real estate listings from Zoopla as JSON and pushes them to Kafka  
+- **Scraping**: Playwright fetches real estate listings from Zoopla as JSON
+- **OpenAI GPT-4o**: Extracts structured property data (address, price, size, etc.) from listing HTML using a well-prompted LLM call. 
 - **Kafka Broker**: Stores each scraped listing as a message in the `properties` topic  
 - **Spark Consumer**: Listens to the Kafka topic, transforms and parses the messages, then writes to Cassandra  
 - **Cassandra**: Stores all listings in a table under `property_streams.properties`  
@@ -102,7 +103,8 @@ SELECT * FROM properties LIMIT 3;
 ## **Key Features**
 
 - Works entirely in real time using a microservice-based design  
-- Clean web scraping using Playwright  
+- Clean web scraping using Playwright
+- Extracts structured metadata from listing HTML using GPT-4o
 - Resilient Kafka topic with backpressure handling  
 - Spark Structured Streaming for fault-tolerant ETL  
 - Writes directly to Cassandra for scalable storage  
