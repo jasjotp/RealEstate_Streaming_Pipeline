@@ -83,7 +83,7 @@ def insert_data(session, **kwargs):
 
 # function to initiailize Cassandra session 
 def create_cassandra_session():
-    session = Cluster(['localhost']).connect()
+    session = Cluster(['cassandra']).connect()
 
     if session is not None: 
         # create a keyspace 
@@ -105,9 +105,10 @@ def main():
             )
     
     kafka_df = (spark.readStream.format('kafka')
-                .option('kafka.bootstrap.servers', 'localhost:9092')
+                .option('kafka.bootstrap.servers', 'kafka-broker:29092')
                 .option('subscribe', 'properties')
                 .option('startingOffsets', 'earliest') # start reading from the beginning of the Kafka topic, even if the messages were published before the Spark job started
+                .option("failOnDataLoss", "false")
                 .load()
             )
     
@@ -156,7 +157,7 @@ def main():
 
     # write the data to Cassandra  
     cassandra_query = (kafka_df.writeStream
-                       .option("checkpointLocation", "/home/jasjotparmar/spark-checkpoints") \
+                       .option("checkpointLocation", "/tmp/spark-checkpoints")
                        .foreachBatch(lambda batch_df, batch_id: batch_df.foreach(
                            lambda row: insert_data(create_cassandra_session(), **row.asDict()))) # write each batch to Cassandra
                         .start()
